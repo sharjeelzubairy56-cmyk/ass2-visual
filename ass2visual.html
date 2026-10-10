@@ -1,0 +1,493 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File System Data Structure Visualizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom scrollbar for terminal and trees */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+
+            ::-webkit-scrollbar-thumb:hover {
+                background: #64748b;
+            }
+
+        .tree-line {
+            position: absolute;
+            left: 11px;
+            top: 24px;
+            bottom: 0;
+            width: 2px;
+            background-color: #334155;
+            z-index: 0;
+        }
+
+        .node-highlight {
+            box-shadow: 0 0 15px 2px rgba(52, 211, 153, 0.4);
+            border-color: #34d399 !important;
+        }
+
+        .list-arrow {
+            display: inline-block;
+            margin: 0 8px;
+            color: #64748b;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-200 font-sans h-screen flex flex-col overflow-hidden selection:bg-emerald-500 selection:text-white">
+
+    <header class="bg-slate-800 border-b border-slate-700 p-4 shadow-md flex justify-between items-center shrink-0">
+        <div>
+            <h1 class="text-xl font-bold text-white flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-400"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" /></svg>
+                Data Structure Visualizer: File System
+            </h1>
+            <p class="text-sm text-slate-400 mt-1">Linked Lists & Stacks under the hood</p>
+        </div>
+        <div class="bg-slate-900 border border-slate-600 px-4 py-2 rounded-lg font-mono text-emerald-400 text-sm shadow-inner min-w-[300px]">
+            <span class="text-slate-500">pwd:</span> <span id="current-path-display">/root</span>
+        </div>
+    </header>
+
+    <main class="flex-1 flex overflow-hidden">
+
+        <!-- Left Panel: Controls & Terminal -->
+        <aside class="w-80 bg-slate-800 border-r border-slate-700 flex flex-col shrink-0">
+            <div class="p-4 border-b border-slate-700 flex-1">
+                <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400 mb-4">Operations</h2>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">Target Name (Directory or File)</label>
+                        <input type="text" id="target-name" placeholder="e.g. CS, DSA, Notes.txt" class="w-full bg-slate-900 border border-slate-600 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 placeholder-slate-600">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="handleCommand('mkdir')" class="bg-blue-600 hover:bg-blue-500 text-white text-xs py-2 px-3 rounded shadow transition-colors font-semibold">Create Dir</button>
+                        <button onclick="handleCommand('rmdir')" class="bg-red-900 hover:bg-red-700 border border-red-700 text-white text-xs py-2 px-3 rounded shadow transition-colors font-semibold">Delete Dir</button>
+
+                        <button onclick="handleCommand('touch')" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs py-2 px-3 rounded shadow transition-colors font-semibold">Create File</button>
+                        <button onclick="handleCommand('rm')" class="bg-red-900 hover:bg-red-700 border border-red-700 text-white text-xs py-2 px-3 rounded shadow transition-colors font-semibold">Delete File</button>
+
+                        <button onclick="handleCommand('cd')" class="col-span-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs py-2 px-3 rounded shadow transition-colors font-semibold">Change Directory (cd name)</button>
+                    </div>
+
+                    <hr class="border-slate-700 my-2">
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="handleCommand('cd..')" class="bg-amber-600 hover:bg-amber-500 text-white text-xs py-2 px-3 rounded shadow transition-colors font-semibold">Move to Parent (cd ..)</button>
+                        <button onclick="handleCommand('root')" class="bg-slate-600 hover:bg-slate-500 text-white text-xs py-2 px-3 rounded shadow transition-colors font-semibold">Go to Root (cd /)</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Terminal Log -->
+            <div class="h-48 bg-black p-3 font-mono text-xs overflow-y-auto" id="terminal-log">
+                <div class="text-emerald-500">> System Initialized.</div>
+                <div class="text-slate-400">> Ready for operations.</div>
+            </div>
+        </aside>
+
+        <section class="flex-1 bg-slate-900 p-6 overflow-y-auto relative">
+            <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400 mb-6 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>
+                Hierarchical Tree (All Nodes)
+            </h2>
+            <div id="tree-container" class="font-mono text-sm pl-2">
+                <!-- Tree will be rendered here -->
+            </div>
+        </section>
+
+        <aside class="w-96 bg-slate-800 border-l border-slate-700 flex flex-col shrink-0">
+
+            <!-- Linked Lists of Current Directory -->
+            <div class="flex-1 border-b border-slate-700 p-4 overflow-y-auto flex flex-col">
+                <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400 mb-2">Memory Pointers (Current Dir)</h2>
+                <p class="text-xs text-slate-500 mb-4">Showing the actual linked lists for the active directory.</p>
+
+                <div class="mb-6 bg-slate-900 rounded-lg p-3 border border-slate-700">
+                    <div class="text-xs text-blue-400 font-bold mb-2">head_subdir</div>
+                    <div id="ll-subdirs" class="flex flex-wrap items-center text-sm font-mono bg-slate-950 p-2 rounded border border-slate-800 min-h-[44px]">
+                        <!-- Subdir linked list rendered here -->
+                    </div>
+                </div>
+
+                <div class="bg-slate-900 rounded-lg p-3 border border-slate-700">
+                    <div class="text-xs text-indigo-400 font-bold mb-2">head_file</div>
+                    <div id="ll-files" class="flex flex-wrap items-center text-sm font-mono bg-slate-950 p-2 rounded border border-slate-800 min-h-[44px]">
+                        <!-- File linked list rendered here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Traversal Stack -->
+            <div class="flex-1 p-4 flex flex-col bg-slate-800 overflow-hidden">
+                <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400 mb-2">Traversal Stack</h2>
+                <p class="text-xs text-slate-500 mb-4">Pushes when entering a folder, pops on 'cd ..'.</p>
+
+                <div class="flex-1 bg-slate-900 border-x-4 border-b-4 border-slate-600 rounded-b-lg p-4 flex flex-col-reverse justify-start overflow-y-auto shadow-inner relative items-center" id="stack-container">
+                    <!-- Stack items rendered here -->
+                    <span class="text-slate-600 text-xs absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-0" id="empty-stack-text">[EMPTY STACK]</span>
+                </div>
+            </div>
+
+        </aside>
+
+    </main>
+
+    <script>
+        // ----------------------------------------------------
+        // DATA STRUCTURES (Simulating C++ Pointers & Nodes)
+        // ----------------------------------------------------
+
+        class FileNode {
+            constructor(name) {
+                this.name = name;
+                this.next = null; // Pointer to next file in the linked list
+            }
+        }
+
+        class DirNode {
+            constructor(name) {
+                this.name = name;
+                this.head_subdir = null; // Pointer to start of subdirectories linked list
+                this.head_file = null;   // Pointer to start of files linked list
+                this.next = null;        // Pointer to next directory sibling in the linked list
+            }
+        }
+
+        // ----------------------------------------------------
+        // SYSTEM STATE
+        // ----------------------------------------------------
+
+        const root = new DirNode("root");
+        let currentDir = root;
+        let stack = []; // Using JS array strictly as a Stack for traversal
+
+        // ----------------------------------------------------
+        // OPERATIONS LOGIC
+        // ----------------------------------------------------
+
+        function createDirectory(name) {
+            if (!name) return logErr("Name cannot be empty.");
+
+            // Check for duplicates
+            let temp = currentDir.head_subdir;
+            while (temp) {
+                if (temp.name === name) return logErr(`Directory '${name}' already exists.`);
+                temp = temp.next;
+            }
+
+            const newDir = new DirNode(name);
+
+            // Linked List Insertion at end
+            if (!currentDir.head_subdir) {
+                currentDir.head_subdir = newDir;
+            } else {
+                let curr = currentDir.head_subdir;
+                while (curr.next !== null) {
+                    curr = curr.next;
+                }
+                curr.next = newDir;
+            }
+            logSuccess(`Directory '${name}' created.`);
+            updateUI();
+        }
+
+        function createFile(name) {
+            if (!name) return logErr("Name cannot be empty.");
+
+            // Check for duplicates
+            let temp = currentDir.head_file;
+            while (temp) {
+                if (temp.name === name) return logErr(`File '${name}' already exists.`);
+                temp = temp.next;
+            }
+
+            const newFile = new FileNode(name);
+
+            // Linked List Insertion at end
+            if (!currentDir.head_file) {
+                currentDir.head_file = newFile;
+            } else {
+                let curr = currentDir.head_file;
+                while (curr.next !== null) {
+                    curr = curr.next;
+                }
+                curr.next = newFile;
+            }
+            logSuccess(`File '${name}' created.`);
+            updateUI();
+        }
+
+        function deleteDirectory(name) {
+            if (!name) return logErr("Name cannot be empty.");
+
+            if (!currentDir.head_subdir) return logErr(`Directory '${name}' not found.`);
+
+            // Linked List Deletion logic
+            if (currentDir.head_subdir.name === name) {
+                // To prevent memory leaks in C++, we would recursively delete currentDir.head_subdir contents here.
+                // JS garbage collection handles it, but log it educationally.
+                currentDir.head_subdir = currentDir.head_subdir.next;
+                logSuccess(`Directory '${name}' and its contents deleted.`);
+                updateUI();
+                return;
+            }
+
+            let curr = currentDir.head_subdir;
+            while (curr.next !== null) {
+                if (curr.next.name === name) {
+                    curr.next = curr.next.next;
+                    logSuccess(`Directory '${name}' and its contents deleted.`);
+                    updateUI();
+                    return;
+                }
+                curr = curr.next;
+            }
+            logErr(`Directory '${name}' not found.`);
+        }
+
+        function deleteFile(name) {
+            if (!name) return logErr("Name cannot be empty.");
+
+            if (!currentDir.head_file) return logErr(`File '${name}' not found.`);
+
+            // Linked List Deletion logic
+            if (currentDir.head_file.name === name) {
+                currentDir.head_file = currentDir.head_file.next;
+                logSuccess(`File '${name}' deleted.`);
+                updateUI();
+                return;
+            }
+
+            let curr = currentDir.head_file;
+            while (curr.next !== null) {
+                if (curr.next.name === name) {
+                    curr.next = curr.next.next;
+                    logSuccess(`File '${name}' deleted.`);
+                    updateUI();
+                    return;
+                }
+                curr = curr.next;
+            }
+            logErr(`File '${name}' not found.`);
+        }
+
+        function changeDirectory(name) {
+            if (!name) return logErr("Name cannot be empty.");
+
+            let temp = currentDir.head_subdir;
+            while (temp !== null) {
+                if (temp.name === name) {
+                    // PUSH current directory to stack before moving
+                    stack.push(currentDir);
+                    currentDir = temp;
+                    logSuccess(`Moved into '${name}'. Parent pushed to stack.`);
+                    updateUI();
+                    return;
+                }
+                temp = temp.next;
+            }
+            logErr(`Directory '${name}' not found.`);
+        }
+
+        function moveToParent() {
+            if (stack.length === 0) {
+                return logErr("Already at root directory.");
+            }
+            // POP from stack to go back
+            const parentNode = stack.pop();
+            currentDir = parentNode;
+            logSuccess(`Popped stack. Moved to parent '${currentDir.name}'.`);
+            updateUI();
+        }
+
+        function goToRoot() {
+            if (currentDir === root) return logErr("Already at root directory.");
+
+            // Clear stack and return to root
+            stack = [];
+            currentDir = root;
+            logSuccess("Stack cleared. Returned to root.");
+            updateUI();
+        }
+
+
+        // ----------------------------------------------------
+        // UI INTERACTION & RENDERING LOGIC
+        // ----------------------------------------------------
+
+        const inputField = document.getElementById('target-name');
+
+        function handleCommand(cmd) {
+            const val = inputField.value.trim();
+            switch(cmd) {
+                case 'mkdir': createDirectory(val); break;
+                case 'touch': createFile(val); break;
+                case 'rmdir': deleteDirectory(val); break;
+                case 'rm': deleteFile(val); break;
+                case 'cd': changeDirectory(val); break;
+                case 'cd..': moveToParent(); break;
+                case 'root': goToRoot(); break;
+            }
+            if (cmd !== 'cd..' && cmd !== 'root') {
+                inputField.value = ''; // clear only if it required an input
+            }
+        }
+
+        // Allow pressing Enter to submit 'cd' or create based on context (default to cd for safety)
+        inputField.addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                if (inputField.value.trim() !== '') {
+                   changeDirectory(inputField.value.trim());
+                   inputField.value = '';
+                }
+            }
+        });
+
+        function logSuccess(msg) {
+            const term = document.getElementById('terminal-log');
+            term.innerHTML += `<div class="text-emerald-400 mt-1">[OK] ${msg}</div>`;
+            term.scrollTop = term.scrollHeight;
+        }
+
+        function logErr(msg) {
+            const term = document.getElementById('terminal-log');
+            term.innerHTML += `<div class="text-red-400 mt-1">[ERR] ${msg}</div>`;
+            term.scrollTop = term.scrollHeight;
+        }
+
+        // Generates SVG icons
+        const iconFolder = `<svg class="inline-block mr-1 text-blue-400" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2 6a2 2 0 0 1 2-2h5l2 2h11a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6Z"/></svg>`;
+        const iconFile = `<svg class="inline-block mr-1 text-indigo-400" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>`;
+
+        function renderTreeHTML(node) {
+            let html = `<ul class="relative ml-4 mt-1 border-l border-slate-700 pl-4 py-1">`;
+
+            // Render Directories
+            let tempDir = node.head_subdir;
+            while (tempDir) {
+                const isCurrent = (tempDir === currentDir);
+                const highlightClass = isCurrent ? "bg-slate-700 border-emerald-500 node-highlight text-emerald-100" : "bg-slate-800 border-slate-600 text-slate-300";
+
+                html += `<li class="relative mb-2">
+                    <div class="tree-line absolute -left-4 top-3 w-4 h-[1px] bg-slate-700"></div>
+                    <div class="inline-flex items-center border rounded px-2 py-1 shadow-sm transition-all duration-300 ${highlightClass}">
+                        ${iconFolder} <span class="font-semibold">${tempDir.name}</span>
+                        ${isCurrent ? '<span class="ml-2 text-[10px] bg-emerald-600 text-white px-1 rounded">CURRENT</span>' : ''}
+                    </div>
+                    ${renderTreeHTML(tempDir)}
+                </li>`;
+                tempDir = tempDir.next;
+            }
+
+            // Render Files
+            let tempFile = node.head_file;
+            while (tempFile) {
+                html += `<li class="relative mb-2">
+                    <div class="tree-line absolute -left-4 top-3 w-4 h-[1px] bg-slate-700"></div>
+                    <div class="inline-flex items-center border border-slate-700 bg-slate-800/50 rounded px-2 py-1 text-slate-400 shadow-sm">
+                        ${iconFile} <span>${tempFile.name}</span>
+                    </div>
+                </li>`;
+                tempFile = tempFile.next;
+            }
+
+            html += `</ul>`;
+            // If empty, don't show the line
+            if (!node.head_subdir && !node.head_file) return "";
+            return html;
+        }
+
+        function updateUI() {
+            // 1. Update Path
+            let pathString = "/root";
+            for (let i = 0; i < stack.length; i++) {
+                if(stack[i].name !== "root") {
+                   pathString += "/" + stack[i].name;
+                }
+            }
+            if (currentDir.name !== "root") pathString += "/" + currentDir.name;
+            document.getElementById('current-path-display').innerText = pathString;
+
+            // 2. Update Tree
+            const rootIsCurrent = (currentDir === root);
+            const rootHighlightClass = rootIsCurrent ? "bg-slate-700 border-emerald-500 node-highlight text-emerald-100" : "bg-slate-800 border-slate-600 text-slate-300";
+
+            let treeHTML = `
+                <div class="inline-flex items-center border rounded px-2 py-1 shadow-sm transition-all duration-300 ${rootHighlightClass}">
+                    ${iconFolder} <span class="font-bold">root</span>
+                    ${rootIsCurrent ? '<span class="ml-2 text-[10px] bg-emerald-600 text-white px-1 rounded">CURRENT</span>' : ''}
+                </div>
+            `;
+            treeHTML += renderTreeHTML(root);
+            document.getElementById('tree-container').innerHTML = treeHTML;
+
+            // 3. Update Stack
+            const stackContainer = document.getElementById('stack-container');
+            let stackHTML = '';
+            if (stack.length === 0) {
+                document.getElementById('empty-stack-text').style.display = 'block';
+            } else {
+                document.getElementById('empty-stack-text').style.display = 'none';
+                // Render bottom-to-top visually. Array index 0 is bottom.
+                // Because flex-col-reverse is on the container, iterating 0 to length works perfectly.
+                for (let i = 0; i < stack.length; i++) {
+                    const isTop = (i === stack.length - 1);
+                    stackHTML += `
+                        <div class="w-full bg-slate-700 border border-slate-500 rounded p-2 mb-2 text-center text-sm shadow-md animate-pulse-once relative z-10">
+                            ${iconFolder} ${stack[i].name}
+                            ${isTop ? '<div class="absolute -right-2 -top-2 bg-emerald-500 text-black text-[9px] font-bold px-1 rounded-full border border-black shadow">TOP</div>' : ''}
+                        </div>
+                    `;
+                }
+            }
+            // Clear nodes except the empty text
+            stackContainer.innerHTML = '<span class="text-slate-600 text-xs absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-0" id="empty-stack-text" style="display:'+ (stack.length === 0 ? 'block' : 'none') +'">[EMPTY STACK]</span>' + stackHTML;
+
+            // 4. Update Current Memory Pointers (Linked Lists)
+            const llSubdirs = document.getElementById('ll-subdirs');
+            let subdirHTML = '';
+            let sTemp = currentDir.head_subdir;
+            while(sTemp) {
+                subdirHTML += `<div class="bg-blue-900/50 border border-blue-500 text-blue-200 px-2 py-1 rounded shadow text-xs flex items-center">${iconFolder} ${sTemp.name}</div>`;
+                subdirHTML += `<span class="list-arrow">➔</span>`;
+                sTemp = sTemp.next;
+            }
+            subdirHTML += `<div class="text-slate-500 font-bold text-xs italic bg-slate-800 px-2 py-1 rounded">NULL</div>`;
+            llSubdirs.innerHTML = subdirHTML;
+
+            const llFiles = document.getElementById('ll-files');
+            let fileHTML = '';
+            let fTemp = currentDir.head_file;
+            while(fTemp) {
+                fileHTML += `<div class="bg-indigo-900/50 border border-indigo-500 text-indigo-200 px-2 py-1 rounded shadow text-xs flex items-center">${iconFile} ${fTemp.name}</div>`;
+                fileHTML += `<span class="list-arrow">➔</span>`;
+                fTemp = fTemp.next;
+            }
+            fileHTML += `<div class="text-slate-500 font-bold text-xs italic bg-slate-800 px-2 py-1 rounded">NULL</div>`;
+            llFiles.innerHTML = fileHTML;
+        }
+
+        // Initialize UI on load
+        window.onload = function() {
+            updateUI();
+        };
+
+    </script>
+</body>
+</html>
